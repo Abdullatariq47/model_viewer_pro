@@ -7,15 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.1] — 2026-06-01
-
-### 🛠 Fixes & Improvements
-- Updated `LICENSE` file to use a standard MIT License, resolving pub.dev upload warnings.
-- Fixed `LICENSE` link in `README.md` to use an absolute GitHub URL for universal compatibility across IDE markdown renderers.
-- Updated `example` application test configurations to include `flutter_test` dependency.
-- Fixed all `dart analyze` warnings (`activeColor` deprecation, `_visibilityMap` type hint) for a perfect 140/140 Pub points score.
-
-## [1.0.0] — 2026-04-15
+## [1.0.0] — 2026-06-01
 
 ### 🚀 Breaking Changes
 - **Package renamed** from `model_viewer_pro_controller` to `model_viewer_pro`.

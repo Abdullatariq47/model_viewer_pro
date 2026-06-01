@@ -3,7 +3,7 @@ description: >-
   Display and control interactive 3D models (GLB/GLTF) in Flutter — mesh
   manipulation, camera control, animations, grounded environments, and
   custom lighting. Built on model_viewer_plus.
-version: 1.0.1
+version: 1.0.0
 homepage: https://github.com/Abdullatariq47/model_viewer_pro
 repository: https://github.com/Abdullatariq47/model_viewer_pro
 issue_tracker: https://github.com/Abdullatariq47/model_viewer_pro/issues
