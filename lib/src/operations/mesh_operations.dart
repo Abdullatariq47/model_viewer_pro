@@ -95,10 +95,26 @@ mixin MeshOperations {
           const scene = mv[sym];
           let found = false;
 
+          const setNodeScale = (node, visible) => {
+            if (!node) return;
+            if (node.scale) {
+              if (node._origScale === undefined) {
+                node._origScale = { x: node.scale.x, y: node.scale.y, z: node.scale.z };
+              }
+              if (visible) {
+                node.scale.set(node._origScale.x, node._origScale.y, node._origScale.z);
+              } else {
+                node.scale.set(0, 0, 0);
+              }
+            }
+          };
+
           scene.traverse(function(node) {
             if (node.name === "$name") {
-              node.visible = $isVisible;
-              node.traverse(function(child) { child.visible = $isVisible; });
+              setNodeScale(node, $isVisible);
+              node.traverse(function(child) {
+                setNodeScale(child, $isVisible);
+              });
               found = true;
             }
           });
@@ -111,7 +127,21 @@ mixin MeshOperations {
           if (scene.updateMatrixWorld) scene.updateMatrixWorld(true);
           if (typeof _modelViewerProForceRender === 'function') {
             _modelViewerProForceRender(mv, scene);
+          } else {
+            // Inline fallback for camera tweak
+            try {
+              const orbit = mv.getCameraOrbit();
+              if (orbit) {
+                const t = orbit.theta * 180 / Math.PI;
+                const p = orbit.phi * 180 / Math.PI;
+                const r = orbit.radius;
+                window._mvTweakToggle = !window._mvTweakToggle;
+                const offset = window._mvTweakToggle ? 0.01 : -0.01;
+                mv.setAttribute('camera-orbit', `\${t + offset}deg \${p}deg \${r}m`);
+              }
+            } catch(e) {}
           }
+
         })();
       ''');
 
