@@ -4,6 +4,23 @@ This guide provides step-by-step instructions for verifying, publishing, and upd
 
 ---
 
+## 0. Initial Setup & GitHub Sync
+
+A fresh local Git repository has already been initialized for you and linked to your remote repository URL. 
+
+To push your local code up to GitHub for the first time, open your terminal in the `model_viewer_pro` folder and run:
+
+```bash
+git push -u origin main
+```
+
+If you ever need to change your remote repository URL in the future:
+```bash
+git remote set-url origin https://github.com/Abdullatariq47/model_viewer_pro.git
+```
+
+---
+
 ## 1. Pre-publish Checklist
 
 ### A. Clean the workspace

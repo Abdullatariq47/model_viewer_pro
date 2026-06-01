@@ -27,7 +27,7 @@ class _DemoScreenState extends State<DemoScreen> {
   final ModelViewerProController _controller = ModelViewerProController();
 
   List<String> _availableMeshes = [];
-  Map<String, bool> _visibilityMap = {};
+  final Map<String, bool> _visibilityMap = {};
   bool _isLoading = true;
   bool _isGrounded = true;
   double _exposure = 2.0;
@@ -193,7 +193,7 @@ class _DemoScreenState extends State<DemoScreen> {
           style: TextStyle(fontSize: 11, color: Colors.grey[600]),
         ),
         value: _isGrounded,
-        activeColor: Colors.amber[700],
+        activeThumbColor: Colors.amber[700],
         onChanged: (v) => setState(() => _isGrounded = v),
         contentPadding: EdgeInsets.zero,
       ),
@@ -239,8 +239,8 @@ class _DemoScreenState extends State<DemoScreen> {
                   ),
                   // Apply green colour
                   IconButton(
-                    icon: const Icon(Icons.circle,
-                        color: Colors.green, size: 18),
+                    icon:
+                        const Icon(Icons.circle, color: Colors.green, size: 18),
                     tooltip: 'Green',
                     onPressed: () => _applyColor(name, '#00C853'),
                   ),
@@ -261,8 +261,7 @@ class _DemoScreenState extends State<DemoScreen> {
         icon: const Icon(Icons.refresh),
         label: const Text('Retry loading meshes'),
         style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.deepPurple,
-            foregroundColor: Colors.white),
+            backgroundColor: Colors.deepPurple, foregroundColor: Colors.white),
         onPressed: () async {
           setState(() => _isLoading = true);
           await _controller.waitForSceneReady(timeoutMs: 5000);

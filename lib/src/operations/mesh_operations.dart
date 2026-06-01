@@ -59,9 +59,7 @@ mixin MeshOperations {
         // Some WebView implementations double-encode the return value.
         if (decoded is String) {
           final inner = jsonDecode(decoded);
-          return inner is List
-              ? List<String>.from(inner)
-              : <String>[];
+          return inner is List ? List<String>.from(inner) : <String>[];
         }
         if (decoded is List) return List<String>.from(decoded);
         return <String>[];

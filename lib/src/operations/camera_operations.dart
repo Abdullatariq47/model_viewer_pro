@@ -24,18 +24,18 @@ mixin CameraOperations {
   /// controller.setCameraOrbit(45, 80, 5);
   /// ```
   Future<void> setCameraOrbit(double theta, double phi, double radius) async {
-    unawaited(webViewController?.runJavaScript(
-        "document.querySelector('model-viewer').cameraOrbit = "
-        "'${theta}deg ${phi}deg ${radius}m';"));
+    unawaited(webViewController
+        ?.runJavaScript("document.querySelector('model-viewer').cameraOrbit = "
+            "'${theta}deg ${phi}deg ${radius}m';"));
   }
 
   /// Sets the point in the scene that the camera looks at.
   ///
   /// [x], [y], [z] are world-space coordinates in metres.
   Future<void> setCameraTarget(double x, double y, double z) async {
-    unawaited(webViewController?.runJavaScript(
-        "document.querySelector('model-viewer').cameraTarget = "
-        "'${x}m ${y}m ${z}m';"));
+    unawaited(webViewController
+        ?.runJavaScript("document.querySelector('model-viewer').cameraTarget = "
+            "'${x}m ${y}m ${z}m';"));
   }
 
   // ── Field of view ─────────────────────────────────────────────────────────

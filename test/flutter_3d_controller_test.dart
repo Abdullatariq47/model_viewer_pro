@@ -29,7 +29,7 @@ void main() {
       await controller.setCameraTarget(0, 1, 0);
       expect(true, isTrue);
     });
-    
+
     test('exposes EnvironmentOperations', () async {
       final result = await controller.loadSkyboxFromAsset('assets/test.jpg');
       expect(result, isFalse);

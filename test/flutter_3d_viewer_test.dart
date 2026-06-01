@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('ModelViewerProViewer widget test placeholder', (WidgetTester tester) async {
+  testWidgets('ModelViewerProViewer widget test placeholder',
+      (WidgetTester tester) async {
     expect(true, isTrue);
   });
 }
