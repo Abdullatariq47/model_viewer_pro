@@ -1,0 +1,26 @@
+name: example
+description: Example app for the model_viewer_pro package
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Uses the package source from the parent directory
+  model_viewer_pro:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/duck.glb
+    - assets/skybox.jpg
+    - assets/spruit_sunrise_1k.hdr
+    - assets/Astronaut.glb
+    - assets/park.jpg

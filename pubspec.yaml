@@ -1,0 +1,24 @@
+name: model_viewer_pro
+description: >-
+  Display and control interactive 3D models (GLB/GLTF) in Flutter — mesh
+  manipulation, camera control, animations, grounded environments, and
+  custom lighting. Built on model_viewer_plus.
+version: 1.0.0
+homepage: https://github.com/Abdullatariq47/model_viewer_pro
+repository: https://github.com/Abdullatariq47/model_viewer_pro
+issue_tracker: https://github.com/Abdullatariq47/model_viewer_pro/issues
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  model_viewer_plus: ^1.10.0
+  webview_flutter: ^4.13.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
