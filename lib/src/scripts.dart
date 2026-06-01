@@ -22,10 +22,10 @@ function _modelViewerProForceRender(mv, scene) {
     const orbit = mv.getCameraOrbit();
     if (orbit) {
       const t = orbit.theta, p = orbit.phi, r = orbit.radius;
-      mv.cameraOrbit = `\${t + 0.001}rad \${p}rad \${r}m`;
-      requestAnimationFrame(() => {
+      mv.cameraOrbit = `\${t + 0.00001}rad \${p}rad \${r}m`;
+      setTimeout(() => {
         mv.cameraOrbit = `\${t}rad \${p}rad \${r}m`;
-      });
+      }, 50);
     }
   } catch(e) {}
 
