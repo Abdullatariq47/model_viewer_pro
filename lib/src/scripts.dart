@@ -17,37 +17,23 @@ const String jsMeshManager = """
  * Uses three independent approaches for maximum compatibility.
  */
 function _modelViewerProForceRender(mv, scene) {
-  // 1. Camera micro-movement — most reliable across model-viewer versions.
+  // 1. Dispatch synthetic pointer events to simulate a screen touch.
+  // This is the most reliable way to wake up the model-viewer render loop.
   try {
-    const orbit = mv.getCameraOrbit();
-    if (orbit) {
-      const t = orbit.theta, p = orbit.phi, r = orbit.radius;
-      mv.cameraOrbit = `\${t + 0.00001}rad \${p}rad \${r}m`;
-      setTimeout(() => {
-        mv.cameraOrbit = `\${t}rad \${p}rad \${r}m`;
-      }, 50);
+    if (mv) {
+      mv.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 0, clientY: 0 }));
+      mv.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: 0, clientY: 0 }));
+      if (typeof mv.requestUpdate === 'function') mv.requestUpdate();
     }
-  } catch(e) {}
+  } catch(e) {
+    console.warn('modelViewerPro: pointer event force render failed', e);
+  }
 
-  // 2. AutoRotate toggle — triggers the internal render loop.
+  // 2. Fallback: autoRotate toggle
   try {
     const wasAutoRotate = mv.autoRotate;
     mv.autoRotate = true;
-    setTimeout(() => { mv.autoRotate = wasAutoRotate; }, 200);
-  } catch(e) {}
-
-  // 3. Mark materials dirty so Three.js re-uploads textures/colours.
-  try {
-    if (scene && scene.traverse) {
-      scene.traverse(node => {
-        if (!node.material) return;
-        if (Array.isArray(node.material)) {
-          node.material.forEach(m => { if (m) m.needsUpdate = true; });
-        } else {
-          node.material.needsUpdate = true;
-        }
-      });
-    }
+    setTimeout(() => { mv.autoRotate = wasAutoRotate; }, 100);
   } catch(e) {}
 }
 
@@ -222,14 +208,44 @@ class ModelViewerProManager {
 
   /// Show or hide a named node (and all its children).
   setNodeVisibility(nodeName, isVisible) {
+    if (!this.mv) { console.warn('modelViewerPro: mv not initialized'); return false; }
     const target = this._findNodeByName(nodeName);
     if (!target) {
       console.warn('modelViewerPro: setNodeVisibility — node not found:', nodeName);
       return false;
     }
-    target.visible = isVisible;
-    target.traverse((child) => { child.visible = isVisible; });
-    _modelViewerProForceRender(this.mv, this.scene);
+  /// Show or hide a named node (and all its children) using a scale-based workaround.
+  /// Mutating Three.js .visible directly can crash model-viewer's internal systems.
+  setNodeVisibility(nodeName, isVisible) {
+    if (!this.mv) { console.warn('modelViewerPro: mv not initialized'); return false; }
+    const target = this._findNodeByName(nodeName);
+    if (!target) {
+      console.warn('modelViewerPro: setNodeVisibility — node not found:', nodeName);
+      return false;
+    }
+    
+    const setNodeScale = (node, visible) => {
+      if (!node) return;
+      if (node.scale) {
+        if (node._origScale === undefined) {
+          node._origScale = { x: node.scale.x, y: node.scale.y, z: node.scale.z };
+        }
+        if (visible) {
+          node.scale.set(node._origScale.x, node._origScale.y, node._origScale.z);
+        } else {
+          node.scale.set(0, 0, 0);
+        }
+      }
+    };
+
+    setNodeScale(target, isVisible);
+    target.traverse((child) => {
+      setNodeScale(child, isVisible);
+    });
+
+    if (typeof _modelViewerProForceRender === 'function') {
+      _modelViewerProForceRender(this.mv, this.scene);
+    }
     return true;
   }
 
