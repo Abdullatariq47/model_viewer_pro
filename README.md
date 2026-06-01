@@ -13,6 +13,18 @@ package does not provide.
 
 ---
 
+## The Customization Workflow (How it Works)
+
+This package provides the simplest and most efficient way to create customizable 3D models (like character avatars with interchangeable outfits) directly in Flutter.
+
+To achieve seamless, instant customization, follow this workflow:
+
+1. **Use a Single GLB File with Overlapping Meshes:** Instead of loading multiple separate files, ask your 3D artist to export a single `.glb` file that contains *all* possible variations (e.g., all shirts, pants, and hats) layered on top of each other.
+2. **Initialize the Default State:** When the model first loads (using the `onLoad` callback), immediately hide the overlapping meshes and show *only* the necessary default meshes.
+3. **Toggle Meshes at Runtime:** As the user interacts with your app's UI, use `controller.setVisibility('MeshName', true/false)` to instantly swap parts. Because all meshes are already loaded into memory, the transition is completely seamless with zero loading delay!
+
+---
+
 ## Features
 
 | | |
@@ -297,18 +309,6 @@ after the `onLoad` callback fires.
 | Android  | ✅ Supported (6.0+) |
 | iOS      | ✅ Supported (11.0+) |
 | Web      | ✅ Supported (via `<model-viewer>`) |
-
----
-
-## The Customization Workflow (How it Works)
-
-This package provides the simplest and most efficient way to create customizable 3D models (like character avatars with interchangeable outfits) directly in Flutter.
-
-To achieve seamless, instant customization, follow this workflow:
-
-1. **Use a Single GLB File with Overlapping Meshes:** Instead of loading multiple separate files, ask your 3D artist to export a single `.glb` file that contains *all* possible variations (e.g., all shirts, pants, and hats) layered on top of each other.
-2. **Initialize the Default State:** When the model first loads (using the `onLoad` callback), immediately hide the overlapping meshes and show *only* the necessary default meshes.
-3. **Toggle Meshes at Runtime:** As the user interacts with your app's UI, use `controller.setVisibility('MeshName', true/false)` to instantly swap parts. Because all meshes are already loaded into memory, the transition is completely seamless with zero loading delay!
 
 ---
 
