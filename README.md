@@ -358,4 +358,4 @@ signatures remain **identical** — no other code changes required.
 
 ## License
 
-See [LICENSE](LICENSE) for details.
+See [LICENSE](https://github.com/Abdullatariq47/model_viewer_pro/blob/main/LICENSE) for details.
