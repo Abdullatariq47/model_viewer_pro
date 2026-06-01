@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.1] — 2026-06-01
+## [1.0.2] — 2026-06-01
 
 ### 🚀 Breaking Changes
 - **Package renamed** from `model_viewer_pro_controller` to `model_viewer_pro`.
