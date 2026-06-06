@@ -334,6 +334,47 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
           : "mv.setAttribute('min-camera-orbit', '${widget.minCameraOrbit}');");
     }
 
+    if (oldWidget.exposure != widget.exposure) {
+      changes.add(widget.exposure == null
+          ? "mv.removeAttribute('exposure');"
+          : "mv.setAttribute('exposure', '${widget.exposure}');");
+    }
+    if (oldWidget.shadowIntensity != widget.shadowIntensity) {
+      changes.add(_effectiveShadowIntensity == null
+          ? "mv.removeAttribute('shadow-intensity');"
+          : "mv.setAttribute('shadow-intensity', '$_effectiveShadowIntensity');");
+    }
+    if (oldWidget.shadowSoftness != widget.shadowSoftness) {
+      changes.add(widget.shadowSoftness == null
+          ? "mv.removeAttribute('shadow-softness');"
+          : "mv.setAttribute('shadow-softness', '${widget.shadowSoftness}');");
+    }
+    if (oldWidget.autoRotate != widget.autoRotate) {
+      changes.add(widget.autoRotate
+          ? "mv.setAttribute('auto-rotate', '');"
+          : "mv.removeAttribute('auto-rotate');");
+    }
+    if (oldWidget.cameraControls != widget.cameraControls) {
+      changes.add(widget.cameraControls
+          ? "mv.setAttribute('camera-controls', '');"
+          : "mv.removeAttribute('camera-controls');");
+    }
+    if (oldWidget.cameraOrbit != widget.cameraOrbit) {
+      changes.add(widget.cameraOrbit == null
+          ? "mv.removeAttribute('camera-orbit');"
+          : "mv.setAttribute('camera-orbit', '${widget.cameraOrbit}');");
+    }
+    if (oldWidget.cameraTarget != widget.cameraTarget) {
+      changes.add(widget.cameraTarget == null
+          ? "mv.removeAttribute('camera-target');"
+          : "mv.setAttribute('camera-target', '${widget.cameraTarget}');");
+    }
+    if (oldWidget.fieldOfView != widget.fieldOfView) {
+      changes.add(widget.fieldOfView == null
+          ? "mv.removeAttribute('field-of-view');"
+          : "mv.setAttribute('field-of-view', '${widget.fieldOfView}');");
+    }
+
     if (changes.isNotEmpty) {
       unawaited(_webViewController.runJavaScript('''
         (function() {

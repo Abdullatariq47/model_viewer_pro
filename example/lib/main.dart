@@ -30,7 +30,7 @@ class _DemoScreenState extends State<DemoScreen> {
   final Map<String, bool> _visibilityMap = {};
   bool _isLoading = true;
   bool _isGrounded = true;
-  double _exposure = 2.0;
+  double _exposure = 0.5;
   double _shadowIntensity = 1.0;
   double _shadowSoftness = 0.5;
 
