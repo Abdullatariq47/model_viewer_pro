@@ -22,6 +22,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/duck.glb
+    - assets/new.glb
+    - assets/man.glb
     - assets/skybox.jpg
     - assets/spruit_sunrise_1k.hdr
     - assets/Astronaut.glb

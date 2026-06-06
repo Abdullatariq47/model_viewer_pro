@@ -67,10 +67,10 @@ class _DemoScreenState extends State<DemoScreen> {
                 Container(
                   color: Colors.grey[200],
                   child: ModelViewerProViewer(
-                    src: 'assets/Astronaut.glb',
+                    src: 'assets/man.glb',
                     controller: _controller,
                     // Local asset skybox loaded via base-64 injection.
-                    skyboxImagePath: 'assets/park.jpg',
+                    // skyboxImagePath: 'assets/park.jpg',
                     // Grounded mode — projects skybox onto a ground plane.
                     grounded: _isGrounded,
                     exposure: _exposure,
@@ -78,7 +78,7 @@ class _DemoScreenState extends State<DemoScreen> {
                     shadowSoftness: _shadowSoftness,
                     autoRotate: false,
                     cameraControls: true,
-                    backgroundColor: Colors.grey[200]!,
+                    backgroundColor: const Color.fromARGB(255, 0, 0, 0)!,
                     onLoad: (List<String> meshes) {
                       setState(() {
                         // Prepend a virtual 'WholeModel' target for bulk ops.
