@@ -239,6 +239,84 @@ mixin MeshOperations {
     }
   }
 
+  /// Ensures that within the provided [group] of mesh names, only the
+  /// [activeMeshName] is visible, and all other meshes in the group are hidden.
+  Future<void> setExclusiveMesh(List<String> group, String activeMeshName) async {
+    if (webViewController == null) return;
+
+    final toShow = [activeMeshName];
+    final toHide = group.where((m) => m != activeMeshName).toList();
+
+    try {
+      final showJson = jsonEncode(toShow);
+      final hideJson = jsonEncode(toHide);
+
+      await webViewController!.runJavaScript('''
+        (function() {
+          const mv = document.querySelector('model-viewer');
+          if (!mv || !mv.loaded) return;
+
+          const sym = Object.getOwnPropertySymbols(mv)
+            .find(s => s.description === 'scene');
+          if (!sym || !mv[sym]) return;
+
+          const scene = mv[sym];
+          const toShow = $showJson;
+          const toHide = $hideJson;
+
+          const setNodeScale = (node, visible) => {
+            if (!node) return;
+            if (node.scale) {
+              if (node._origScale === undefined) {
+                node._origScale = { x: node.scale.x, y: node.scale.y, z: node.scale.z };
+              }
+              if (visible) {
+                node.scale.set(node._origScale.x, node._origScale.y, node._origScale.z);
+              } else {
+                node.scale.set(0, 0, 0);
+              }
+            }
+          };
+
+          scene.traverse(function(node) {
+            if (toShow.includes(node.name)) {
+              setNodeScale(node, true);
+              node.traverse(function(child) {
+                setNodeScale(child, true);
+              });
+            } else if (toHide.includes(node.name)) {
+              setNodeScale(node, false);
+              node.traverse(function(child) {
+                setNodeScale(child, false);
+              });
+            }
+          });
+
+          if (scene.updateMatrixWorld) scene.updateMatrixWorld(true);
+          if (typeof _modelViewerProForceRender === 'function') {
+            _modelViewerProForceRender(mv, scene);
+          } else {
+            try {
+              const orbit = mv.getCameraOrbit();
+              if (orbit) {
+                const t = orbit.theta * 180 / Math.PI;
+                const p = orbit.phi * 180 / Math.PI;
+                const r = orbit.radius;
+                window._mvTweakToggle = !window._mvTweakToggle;
+                const offset = window._mvTweakToggle ? 0.01 : -0.01;
+                mv.setAttribute('camera-orbit', `\${t + offset}deg \${p}deg \${r}m`);
+              }
+            } catch(e) {}
+          }
+        })();
+      ''');
+
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    } catch (e) {
+      debugPrint('model_viewer_pro: setExclusiveMesh error — \$e');
+    }
+  }
+
   // ── Colour ────────────────────────────────────────────────────────────────
 
   /// Changes the base colour of the mesh named [meshName].

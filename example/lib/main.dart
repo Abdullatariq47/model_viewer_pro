@@ -27,8 +27,18 @@ class DemoScreen extends StatefulWidget {
 const List<String> _kInitialMeshes = [
   'dress_whole',
   'sleeves_p',
-  'edging_arrow',
-  'band_1b',
+  'edging_square',
+  'band_2b',
+];
+
+const List<String> grop1 = [
+  'spread_2b',
+  'point_2b',
+  'band_2b',
+];
+
+const List<List<String>> _meshGroups = [
+  grop1,
 ];
 
 class _DemoScreenState extends State<DemoScreen> {
@@ -41,6 +51,7 @@ class _DemoScreenState extends State<DemoScreen> {
   double _exposure = 0.5;
   double _shadowIntensity = 1.0;
   double _shadowSoftness = 0.5;
+  final Map<int, String> _activeMeshInGroup = {};
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +97,7 @@ class _DemoScreenState extends State<DemoScreen> {
                     shadowSoftness: _shadowSoftness,
                     autoRotate: false,
                     cameraControls: true,
+                    cameraTarget: "0m 30m 0m",
                     backgroundColor: Colors.grey,
                     initialLoadingMeshes: _kInitialMeshes,
                     onLoad: (List<String> meshes) {
@@ -93,12 +105,40 @@ class _DemoScreenState extends State<DemoScreen> {
                         // Prepend a virtual 'WholeModel' target for bulk ops.
                         _availableMeshes = ['WholeModel', ...meshes];
                         _isLoading = false;
-                        // Set correct initial visibility: only _kInitialMeshes are visible.
+
+                        // Set all initially to false or visible based on _kInitialMeshes
                         for (final name in _availableMeshes) {
                           if (name == 'WholeModel') {
                             _visibilityMap[name] = true;
                           } else {
-                            _visibilityMap[name] = _kInitialMeshes.contains(name);
+                            _visibilityMap[name] =
+                                _kInitialMeshes.contains(name);
+                          }
+                        }
+
+                        // For each exclusive group, ensure only the first one (or initially visible one) is active
+                        for (int i = 0; i < _meshGroups.length; i++) {
+                          final group = _meshGroups[i];
+                          if (group.isNotEmpty) {
+                            String? activeMesh;
+                            for (var mesh in group) {
+                              if (_visibilityMap[mesh] == true) {
+                                activeMesh = mesh;
+                                break;
+                              }
+                            }
+                            activeMesh ??= group.first;
+                            _activeMeshInGroup[i] = activeMesh;
+
+                            // Sync visibility map with group exclusivity
+                            for (var mesh in group) {
+                              _visibilityMap[mesh] = (mesh == activeMesh);
+                              if (mesh != activeMesh) {
+                                _controller.setVisibility(mesh, false);
+                              } else {
+                                _controller.setVisibility(mesh, true);
+                              }
+                            }
                           }
                         }
                       });
@@ -140,9 +180,11 @@ class _DemoScreenState extends State<DemoScreen> {
                   const SizedBox(height: 8),
                   _buildGroundedCard(),
                   const SizedBox(height: 8),
-                  if (_availableMeshes.isNotEmpty)
-                    _buildMeshCard()
-                  else if (!_isLoading)
+                  if (_availableMeshes.isNotEmpty) ...[
+                    _buildGroupCard(),
+                    const SizedBox(height: 8),
+                    _buildMeshCard(),
+                  ] else if (!_isLoading)
                     _buildRetryCard(),
                 ],
               ),
@@ -214,14 +256,66 @@ class _DemoScreenState extends State<DemoScreen> {
     );
   }
 
+  // ── Exclusive Groups Card ───────────────────────────────────────────────────
+
+  Widget _buildGroupCard() {
+    return Column(
+      children: List.generate(_meshGroups.length, (index) {
+        final group = _meshGroups[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: _Card(
+            title: 'Group ${index + 1} (Exclusive)',
+            color: Colors.orange.shade50,
+            borderColor: Colors.orange.shade200,
+            child: RadioGroup<String>(
+              groupValue: _activeMeshInGroup[index],
+              onChanged: (val) => _onExclusiveMeshChanged(index, group, val!),
+              child: Column(
+                children: group.map((meshName) {
+                  return RadioListTile<String>(
+                    title: Text(meshName, style: const TextStyle(fontSize: 13)),
+                    value: meshName,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  void _onExclusiveMeshChanged(
+      int groupIndex, List<String> group, String selectedMesh) {
+    setState(() {
+      _activeMeshInGroup[groupIndex] = selectedMesh;
+      for (final m in group) {
+        _visibilityMap[m] = (m == selectedMesh);
+      }
+    });
+
+    _controller.setExclusiveMesh(group, selectedMesh);
+
+    for (int i = 1; i <= 12; i++) {
+      Future<void>.delayed(Duration(milliseconds: 50 * i), () {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
   // ── Mesh list card ────────────────────────────────────────────────────────
 
   Widget _buildMeshCard() {
     // Split into visible / hidden groups (exclude WholeModel row — shown separately).
     final meshOnly = _availableMeshes.where((m) => m != 'WholeModel').toList();
-    final visibleMeshes = meshOnly.where((m) => _visibilityMap[m] == true).toList();
-    final hiddenMeshes  = meshOnly.where((m) => _visibilityMap[m] != true).toList();
-    final total   = meshOnly.length;
+    final visibleMeshes =
+        meshOnly.where((m) => _visibilityMap[m] == true).toList();
+    final hiddenMeshes =
+        meshOnly.where((m) => _visibilityMap[m] != true).toList();
+    final total = meshOnly.length;
     final showing = visibleMeshes.length;
 
     return _Card(
@@ -234,7 +328,8 @@ class _DemoScreenState extends State<DemoScreen> {
           // ── Summary bar ──────────────────────────────────────────────────
           Row(
             children: [
-              _StatusBadge(label: '$showing shown', color: Colors.green.shade700),
+              _StatusBadge(
+                  label: '$showing shown', color: Colors.green.shade700),
               const SizedBox(width: 6),
               _StatusBadge(
                   label: '${total - showing} hidden',
@@ -265,15 +360,15 @@ class _DemoScreenState extends State<DemoScreen> {
                   _buildSectionHeader('Visible (${visibleMeshes.length})',
                       Colors.green.shade700),
                 ],
-                ...visibleMeshes.map(
-                    (name) => _buildMeshRow(name, visible: true)),
+                ...visibleMeshes
+                    .map((name) => _buildMeshRow(name, visible: true)),
                 // Hidden section
                 if (hiddenMeshes.isNotEmpty) ...[
-                  _buildSectionHeader('Hidden (${hiddenMeshes.length})',
-                      Colors.grey.shade600),
+                  _buildSectionHeader(
+                      'Hidden (${hiddenMeshes.length})', Colors.grey.shade600),
                 ],
-                ...hiddenMeshes.map(
-                    (name) => _buildMeshRow(name, visible: false)),
+                ...hiddenMeshes
+                    .map((name) => _buildMeshRow(name, visible: false)),
               ],
             ),
           ),
@@ -287,7 +382,9 @@ class _DemoScreenState extends State<DemoScreen> {
       padding: const EdgeInsets.fromLTRB(0, 6, 0, 2),
       child: Row(
         children: [
-          Container(width: 3, height: 14,
+          Container(
+              width: 3,
+              height: 14,
               decoration: BoxDecoration(
                   color: color, borderRadius: BorderRadius.circular(2))),
           const SizedBox(width: 6),
@@ -492,9 +589,7 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(label,
           style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: color)),
+              fontSize: 11, fontWeight: FontWeight.w700, color: color)),
     );
   }
 }
