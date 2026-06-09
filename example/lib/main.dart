@@ -23,6 +23,14 @@ class DemoScreen extends StatefulWidget {
   State<DemoScreen> createState() => _DemoScreenState();
 }
 
+// Meshes that are shown by default on first load.
+const List<String> _kInitialMeshes = [
+  'dress_whole',
+  'sleeves_p',
+  'edging_arrow',
+  'band_1b',
+];
+
 class _DemoScreenState extends State<DemoScreen> {
   final ModelViewerProController _controller = ModelViewerProController();
 
@@ -30,7 +38,7 @@ class _DemoScreenState extends State<DemoScreen> {
   final Map<String, bool> _visibilityMap = {};
   bool _isLoading = true;
   bool _isGrounded = true;
-  double _exposure = 2.0;
+  double _exposure = 0.5;
   double _shadowIntensity = 1.0;
   double _shadowSoftness = 0.5;
 
@@ -78,14 +86,20 @@ class _DemoScreenState extends State<DemoScreen> {
                     shadowSoftness: _shadowSoftness,
                     autoRotate: false,
                     cameraControls: true,
-                    backgroundColor: const Color.fromARGB(255, 0, 0, 0)!,
+                    backgroundColor: Colors.grey,
+                    initialLoadingMeshes: _kInitialMeshes,
                     onLoad: (List<String> meshes) {
                       setState(() {
                         // Prepend a virtual 'WholeModel' target for bulk ops.
                         _availableMeshes = ['WholeModel', ...meshes];
                         _isLoading = false;
+                        // Set correct initial visibility: only _kInitialMeshes are visible.
                         for (final name in _availableMeshes) {
-                          _visibilityMap[name] = true;
+                          if (name == 'WholeModel') {
+                            _visibilityMap[name] = true;
+                          } else {
+                            _visibilityMap[name] = _kInitialMeshes.contains(name);
+                          }
                         }
                       });
                     },
@@ -203,51 +217,155 @@ class _DemoScreenState extends State<DemoScreen> {
   // ── Mesh list card ────────────────────────────────────────────────────────
 
   Widget _buildMeshCard() {
+    // Split into visible / hidden groups (exclude WholeModel row — shown separately).
+    final meshOnly = _availableMeshes.where((m) => m != 'WholeModel').toList();
+    final visibleMeshes = meshOnly.where((m) => _visibilityMap[m] == true).toList();
+    final hiddenMeshes  = meshOnly.where((m) => _visibilityMap[m] != true).toList();
+    final total   = meshOnly.length;
+    final showing = visibleMeshes.length;
+
     return _Card(
-      title: 'Meshes (${_availableMeshes.length})',
+      title: 'Meshes',
       color: Colors.cyan.shade50,
       borderColor: Colors.cyan.shade200,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 320),
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: _availableMeshes.length,
-          itemBuilder: (context, index) {
-            final name = _availableMeshes[index];
-            final visible = _visibilityMap[name] ?? true;
-            return ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              title: Text(name, style: const TextStyle(fontSize: 12)),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Visibility toggle
-                  IconButton(
-                    icon: Icon(
-                      visible ? Icons.visibility : Icons.visibility_off,
-                      color: visible ? Colors.deepPurple : Colors.grey,
-                      size: 18,
-                    ),
-                    onPressed: () => _toggleVisibility(name, !visible),
-                  ),
-                  // Apply red colour
-                  IconButton(
-                    icon: const Icon(Icons.circle, color: Colors.red, size: 18),
-                    tooltip: 'Red',
-                    onPressed: () => _applyColor(name, '#FF0000'),
-                  ),
-                  // Apply green colour
-                  IconButton(
-                    icon:
-                        const Icon(Icons.circle, color: Colors.green, size: 18),
-                    tooltip: 'Green',
-                    onPressed: () => _applyColor(name, '#00C853'),
-                  ),
-                ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Summary bar ──────────────────────────────────────────────────
+          Row(
+            children: [
+              _StatusBadge(label: '$showing shown', color: Colors.green.shade700),
+              const SizedBox(width: 6),
+              _StatusBadge(
+                  label: '${total - showing} hidden',
+                  color: Colors.grey.shade500),
+              const Spacer(),
+              // Whole-model toggle
+              _WholeModelToggle(
+                allVisible: showing == total,
+                someVisible: showing > 0 && showing < total,
+                onToggle: (v) {
+                  for (final m in meshOnly) {
+                    _toggleVisibility(m, v);
+                  }
+                  _toggleVisibility('WholeModel', v);
+                },
               ),
-            );
-          },
+            ],
+          ),
+          const SizedBox(height: 8),
+          // ── Mesh rows ────────────────────────────────────────────────────
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 300),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                // Visible section
+                if (visibleMeshes.isNotEmpty) ...[
+                  _buildSectionHeader('Visible (${visibleMeshes.length})',
+                      Colors.green.shade700),
+                ],
+                ...visibleMeshes.map(
+                    (name) => _buildMeshRow(name, visible: true)),
+                // Hidden section
+                if (hiddenMeshes.isNotEmpty) ...[
+                  _buildSectionHeader('Hidden (${hiddenMeshes.length})',
+                      Colors.grey.shade600),
+                ],
+                ...hiddenMeshes.map(
+                    (name) => _buildMeshRow(name, visible: false)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String label, Color color) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 6, 0, 2),
+      child: Row(
+        children: [
+          Container(width: 3, height: 14,
+              decoration: BoxDecoration(
+                  color: color, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 6),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  letterSpacing: 0.3)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMeshRow(String name, {required bool visible}) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.symmetric(vertical: 1),
+      decoration: BoxDecoration(
+        color: visible
+            ? Colors.white.withValues(alpha: 0.8)
+            : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+            color: visible ? Colors.cyan.shade200 : Colors.grey.shade300),
+      ),
+      child: ListTile(
+        dense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+        leading: Icon(
+          visible ? Icons.view_in_ar : Icons.view_in_ar_outlined,
+          size: 16,
+          color: visible ? Colors.cyan.shade700 : Colors.grey.shade400,
+        ),
+        title: Text(
+          name,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: visible ? Colors.black87 : Colors.grey.shade500,
+            decoration: visible ? null : TextDecoration.lineThrough,
+            decorationColor: Colors.grey.shade400,
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Visibility toggle
+            GestureDetector(
+              onTap: () => _toggleVisibility(name, !visible),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: Icon(
+                  visible ? Icons.visibility : Icons.visibility_off,
+                  key: ValueKey(visible),
+                  color: visible ? Colors.deepPurple : Colors.grey.shade400,
+                  size: 20,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            // Red colour
+            IconButton(
+              icon: const Icon(Icons.circle, color: Colors.red, size: 16),
+              tooltip: 'Red',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              onPressed: () => _applyColor(name, '#FF0000'),
+            ),
+            // Green colour
+            IconButton(
+              icon: Icon(Icons.circle, color: Colors.green.shade600, size: 16),
+              tooltip: 'Green',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              onPressed: () => _applyColor(name, '#00C853'),
+            ),
+          ],
         ),
       ),
     );
@@ -282,7 +400,9 @@ class _DemoScreenState extends State<DemoScreen> {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   void _toggleVisibility(String name, bool visible) {
+    // Update Flutter UI first for instant feedback.
     setState(() => _visibilityMap[name] = visible);
+    // Then fire the JS call to update the WebView renderer.
     if (name == 'WholeModel') {
       for (final m in _availableMeshes) {
         if (m != 'WholeModel') {
@@ -292,6 +412,16 @@ class _DemoScreenState extends State<DemoScreen> {
       }
     } else {
       _controller.setVisibility(name, visible);
+    }
+
+    // Schedule 12 Flutter frame rebuilds spaced 50 ms apart, matching the
+    // JS-side exposure pump ticks.  Each rebuild causes Flutter to re-composite
+    // the WebView's latest WebGL surface so the mesh change is visible on screen
+    // WITHOUT the user needing to touch/drag the 3D viewer.
+    for (int i = 1; i <= 12; i++) {
+      Future<void>.delayed(Duration(milliseconds: 50 * i), () {
+        if (mounted) setState(() {});
+      });
     }
   }
 
@@ -341,6 +471,70 @@ class _Card extends StatelessWidget {
           child,
         ],
       ),
+    );
+  }
+}
+
+/// Small pill badge showing a count label.
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color)),
+    );
+  }
+}
+
+/// Whole-model show/hide toggle button with indeterminate state support.
+class _WholeModelToggle extends StatelessWidget {
+  const _WholeModelToggle({
+    required this.allVisible,
+    required this.someVisible,
+    required this.onToggle,
+  });
+  final bool allVisible;
+  final bool someVisible;
+  final ValueChanged<bool> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = allVisible
+        ? Icons.visibility
+        : someVisible
+            ? Icons.visibility_outlined
+            : Icons.visibility_off;
+    final color = allVisible
+        ? Colors.deepPurple
+        : someVisible
+            ? Colors.deepPurple.shade200
+            : Colors.grey.shade500;
+    final label = allVisible ? 'Hide all' : 'Show all';
+
+    return TextButton.icon(
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      icon: Icon(icon, size: 15, color: color),
+      label: Text(label,
+          style: TextStyle(
+              fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+      onPressed: () => onToggle(!allVisible),
     );
   }
 }
