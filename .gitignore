@@ -32,4 +32,5 @@ migrate_working_dir/
 
 # Custom rules
 PUBLISH_GUIDE.md
+MediumPost.md
 *.code-workspace
