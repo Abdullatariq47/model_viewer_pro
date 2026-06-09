@@ -1,6 +1,6 @@
 name: model_viewer_pro
 description: Interactive 3D models in Flutter. Full runtime control over mesh visibility, colors, cameras, animations, and lighting. Built on model_viewer_plus.
-version: 1.0.3
+version: 2.0.0
 homepage: https://github.com/Abdullatariq47/model_viewer_pro
 repository: https://github.com/Abdullatariq47/model_viewer_pro
 issue_tracker: https://github.com/Abdullatariq47/model_viewer_pro/issues

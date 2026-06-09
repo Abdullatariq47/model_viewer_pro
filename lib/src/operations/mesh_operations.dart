@@ -152,7 +152,8 @@ mixin MeshOperations {
         }
         return [];
       } catch (e) {
-        debugPrint('model_viewer_pro: getAvailableMeshesWithState decode error — \$e');
+        debugPrint(
+            'model_viewer_pro: getAvailableMeshesWithState decode error — \$e');
         return [];
       }
     } catch (e) {
@@ -241,7 +242,8 @@ mixin MeshOperations {
 
   /// Ensures that within the provided [group] of mesh names, only the
   /// [activeMeshName] is visible, and all other meshes in the group are hidden.
-  Future<void> setExclusiveMesh(List<String> group, String activeMeshName) async {
+  Future<void> setExclusiveMesh(
+      List<String> group, String activeMeshName) async {
     if (webViewController == null) return;
 
     final toShow = [activeMeshName];

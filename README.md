@@ -45,7 +45,7 @@ To achieve seamless, instant customization, follow this workflow:
 ```yaml
 # pubspec.yaml
 dependencies:
-  model_viewer_pro: ^1.0.0
+  model_viewer_pro: ^2.0.0
 ```
 
 Then run:
@@ -106,6 +106,7 @@ flutter:
 |-----------|------|---------|-------------|
 | `controller` | `ModelViewerProController?` | `null` | Controller for runtime mesh, camera, and lighting operations. |
 | `onLoad` | `Function(List<String>)?` | `null` | Called once the model loads with discovered mesh names. |
+| `initialLoadingMeshes` | `List<String>?` | `null` | Whitelist of meshes to show instantly upon load, hiding all others to prevent visual pop-in. |
 
 ### Appearance
 
@@ -217,6 +218,7 @@ after the `onLoad` callback fires.
 |--------|---------|-------------|
 | `getAvailableMeshes()` | `Future<List<String>>` | All mesh names in the loaded model. |
 | `setVisibility(name, visible)` | `Future<void>` | Show/hide a mesh and all its children. |
+| `setExclusiveMesh(group, selectedMesh)` | `Future<void>` | Show `selectedMesh` and hide all other meshes in the `group` list. |
 | `setTextureColor(name, colorHex)` | `Future<void>` | Change a mesh's base colour (e.g. `"#FF0000"`). |
 
 ### Camera

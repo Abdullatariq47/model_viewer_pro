@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.0] — 2026-06-09
+
+### 🚀 Breaking Changes / Major Updates
+- **Version 2.0.0** introduces optimized initial mesh loading and exclusive mesh grouping.
+
+### ✨ New Features
+- **Initial Loading Meshes** (`initialLoadingMeshes`): You can now provide a list of mesh names directly to `ModelViewerProViewer`. The viewer will use a whitelist to instantly hide all other meshes when the model loads, preventing any visual "pop-in" of unwanted meshes.
+- **Exclusive Meshes** (`setExclusiveMesh(group, selectedMesh)`): A new controller method that ensures only one mesh from a specified group is visible at a time. Perfect for outfit switching!
+- **Grounded Mode Toggles**: Grounded mode is now fully supported and easily togglable at runtime. 
+
+### 🛠 Improvements
+- Code cleanups and formatting improvements.
+- Added promotional assets (screenshots and video) for pub.dev.
+
+---
+
 ## [1.0.3] — 2026-06-01
 
 ### 🚀 Breaking Changes

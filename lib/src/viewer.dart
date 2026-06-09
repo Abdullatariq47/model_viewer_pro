@@ -477,58 +477,58 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
           environmentImage: isEnvAsset ? null : resolvedEnv,
           skyboxImage: isSkyboxAsset ? null : resolvedSkybox,
           debugLogging: false,
-      onWebViewCreated: (webController) async {
-        _webViewController = webController;
-        widget.controller?.setWebViewController(webController);
+          onWebViewCreated: (webController) async {
+            _webViewController = webController;
+            widget.controller?.setWebViewController(webController);
 
-        // Inject the JS manager (defines ModelViewerProManager + force-render helper).
-        await webController.runJavaScript(jsMeshManager);
-        await Future<void>.delayed(const Duration(milliseconds: 150));
+            // Inject the JS manager (defines ModelViewerProManager + force-render helper).
+            await webController.runJavaScript(jsMeshManager);
+            await Future<void>.delayed(const Duration(milliseconds: 150));
 
-        final initAttrs = <String>[];
+            final initAttrs = <String>[];
 
-        // Encode local assets as base-64 data URIs.
-        if (isEnvAsset) {
-          final uri = await _loadAssetToBase64(resolvedEnv);
-          if (uri != null) {
-            initAttrs.add("mv.setAttribute('environment-image', '$uri');");
-          }
-        }
-        if (isSkyboxAsset) {
-          final uri = await _loadAssetToBase64(resolvedSkybox);
-          if (uri != null) {
-            initAttrs.add("mv.setAttribute('skybox-image', '$uri');");
-          }
-        }
+            // Encode local assets as base-64 data URIs.
+            if (isEnvAsset) {
+              final uri = await _loadAssetToBase64(resolvedEnv);
+              if (uri != null) {
+                initAttrs.add("mv.setAttribute('environment-image', '$uri');");
+              }
+            }
+            if (isSkyboxAsset) {
+              final uri = await _loadAssetToBase64(resolvedSkybox);
+              if (uri != null) {
+                initAttrs.add("mv.setAttribute('skybox-image', '$uri');");
+              }
+            }
 
-        // Interaction attributes.
-        if (_effectiveDisablePan) {
-          initAttrs.add("mv.setAttribute('disable-pan', '');");
-        }
-        if (widget.disableZoom == true) {
-          initAttrs.add("mv.setAttribute('disable-zoom', '');");
-        }
-        if (widget.disableTap == true) {
-          initAttrs.add("mv.setAttribute('disable-tap', '');");
-        }
-        if (widget.touchAction != null) {
-          initAttrs
-              .add("mv.setAttribute('touch-action', '${widget.touchAction}');");
-        }
+            // Interaction attributes.
+            if (_effectiveDisablePan) {
+              initAttrs.add("mv.setAttribute('disable-pan', '');");
+            }
+            if (widget.disableZoom == true) {
+              initAttrs.add("mv.setAttribute('disable-zoom', '');");
+            }
+            if (widget.disableTap == true) {
+              initAttrs.add("mv.setAttribute('disable-tap', '');");
+            }
+            if (widget.touchAction != null) {
+              initAttrs.add(
+                  "mv.setAttribute('touch-action', '${widget.touchAction}');");
+            }
 
-        // Camera constraints.
-        if (_effectiveMaxCameraOrbit != null) {
-          initAttrs.add(
-              "mv.setAttribute('max-camera-orbit', '$_effectiveMaxCameraOrbit');");
-        }
-        if (widget.minCameraOrbit != null) {
-          initAttrs.add(
-              "mv.setAttribute('min-camera-orbit', '${widget.minCameraOrbit}');");
-        }
+            // Camera constraints.
+            if (_effectiveMaxCameraOrbit != null) {
+              initAttrs.add(
+                  "mv.setAttribute('max-camera-orbit', '$_effectiveMaxCameraOrbit');");
+            }
+            if (widget.minCameraOrbit != null) {
+              initAttrs.add(
+                  "mv.setAttribute('min-camera-orbit', '${widget.minCameraOrbit}');");
+            }
 
-        // Grounded floor projection.
-        if (widget.grounded == true) {
-          initAttrs.add('''
+            // Grounded floor projection.
+            if (widget.grounded == true) {
+              initAttrs.add('''
             if (!mv.getAttribute('skybox-image')) {
               var env = mv.getAttribute('environment-image');
               if (env) mv.setAttribute('skybox-image', env);
@@ -538,12 +538,12 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
               mv.setAttribute('skybox-height', '$_effectiveSkyboxHeight');
             }
           ''');
-        } else if (widget.skyboxHeight != null) {
-          initAttrs.add(
-              "mv.setAttribute('skybox-height', '${widget.skyboxHeight}');");
-        }
+            } else if (widget.skyboxHeight != null) {
+              initAttrs.add(
+                  "mv.setAttribute('skybox-height', '${widget.skyboxHeight}');");
+            }
 
-        await webController.runJavaScript('''
+            await webController.runJavaScript('''
           (function pollForModelViewer() {
             var mv = document.querySelector('model-viewer');
             if (!mv) { setTimeout(pollForModelViewer, 100); return; }
@@ -572,19 +572,19 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
           })();
         ''');
 
-        if (widget.onLoad != null || widget.initialLoadingMeshes != null) {
-          unawaited(_checkModelLoadedAndGetMeshes());
-        }
-      },
-    ),
-    if (_curtainVisible)
-      Container(
-        key: const ValueKey('mvp-html-curtain'),
-        color: widget.backgroundColor,
-      ),
-    ],
-  );
-}
+            if (widget.onLoad != null || widget.initialLoadingMeshes != null) {
+              unawaited(_checkModelLoadedAndGetMeshes());
+            }
+          },
+        ),
+        if (_curtainVisible)
+          Container(
+            key: const ValueKey('mvp-html-curtain'),
+            color: widget.backgroundColor,
+          ),
+      ],
+    );
+  }
 
   // ── Mesh loader ───────────────────────────────────────────────────────────
 
