@@ -60,9 +60,6 @@ class ModelViewerProViewer extends StatefulWidget {
   /// Called once the model has loaded with a list of available mesh names.
   final void Function(List<String> availableMeshes)? onLoad;
 
-  /// Optional list of mesh names to show initially. All others will be hidden.
-  final List<String>? initialLoadingMeshes;
-
   // ── Appearance ────────────────────────────────────────────────────────────
 
   /// Background color of the viewer. Defaults to [Colors.transparent].
@@ -140,6 +137,9 @@ class ModelViewerProViewer extends StatefulWidget {
   /// CSS `touch-action` attribute, e.g. `"pan-y"`.
   final String? touchAction;
 
+  /// List of mesh names to show initially while hiding the rest.
+  final List<String>? initialLoadingMeshes;
+
   // ── Model loading ─────────────────────────────────────────────────────────
 
   /// Whether to show the AR button. Defaults to `false`.
@@ -184,7 +184,6 @@ class ModelViewerProViewer extends StatefulWidget {
     required this.src,
     this.controller,
     this.onLoad,
-    this.initialLoadingMeshes,
     this.backgroundColor = Colors.transparent,
     this.autoRotate = false,
     this.cameraControls = true,
@@ -218,6 +217,7 @@ class ModelViewerProViewer extends StatefulWidget {
     this.skyboxHeight,
     this.disableZoom,
     this.disableTap,
+    this.initialLoadingMeshes,
   });
 
   @override
@@ -229,11 +229,6 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
   bool _modelLoaded = false;
   int _meshLoadAttempts = 0;
   bool _curtainVisible = true;
-
-  @override
-  void initState() {
-    super.initState();
-  }
 
   // ── Effective values ──────────────────────────────────────────────────────
   // When grounded is true these resolve to a sensible default unless the
@@ -458,7 +453,6 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
         !resolvedEnv.startsWith('data:');
 
     return Stack(
-      fit: StackFit.expand,
       children: [
         ModelViewer(
           src: widget.src,
@@ -491,28 +485,6 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
             await webController.runJavaScript(jsMeshManager);
             await Future<void>.delayed(const Duration(milliseconds: 150));
 
-            // Inject HTML div overlay inside the WebView — covers model-viewer
-            // completely so we don't need to mess with its CSS or opacity,
-            // avoiding GL_INVALID_FRAMEBUFFER_OPERATION errors.
-            if (widget.initialLoadingMeshes != null) {
-              final bgHex = '#${widget.backgroundColor.toARGB32().toRadixString(16).substring(2, 8)}';
-              await webController.runJavaScript('''
-                (function() {
-                  var div = document.createElement('div');
-                  div.id = 'mvp-html-curtain';
-                  div.style.position = 'fixed';
-                  div.style.top = '0';
-                  div.style.left = '0';
-                  div.style.width = '100vw';
-                  div.style.height = '100vh';
-                  div.style.backgroundColor = '$bgHex';
-                  div.style.zIndex = '999999';
-                  div.style.transition = 'opacity 0.3s ease';
-                  document.body.appendChild(div);
-                })();
-              ''');
-            }
-
             final initAttrs = <String>[];
 
             // Encode local assets as base-64 data URIs.
@@ -540,8 +512,8 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
               initAttrs.add("mv.setAttribute('disable-tap', '');");
             }
             if (widget.touchAction != null) {
-              initAttrs
-                  .add("mv.setAttribute('touch-action', '${widget.touchAction}');");
+              initAttrs.add(
+                  "mv.setAttribute('touch-action', '${widget.touchAction}');");
             }
 
             // Camera constraints.
@@ -557,6 +529,29 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
             // Grounded floor projection.
             if (widget.grounded == true) {
               initAttrs.add('''
+            if (!mv.getAttribute('skybox-image')) {
+              var env = mv.getAttribute('environment-image');
+              if (env) mv.setAttribute('skybox-image', env);
+            }
+            if (mv.getAttribute('skybox-image')) {
+              mv.setAttribute('skybox-projection', 'equirectangular');
+              mv.setAttribute('skybox-height', '$_effectiveSkyboxHeight');
+            }
+          ''');
+            } else if (widget.skyboxHeight != null) {
+              initAttrs.add(
+                  "mv.setAttribute('skybox-height', '${widget.skyboxHeight}');");
+            }
+
+            await webController.runJavaScript('''
+          (function pollForModelViewer() {
+            var mv = document.querySelector('model-viewer');
+            if (!mv) { setTimeout(pollForModelViewer, 100); return; }
+            ${initAttrs.join('\n')}
+            if (mv.requestUpdate) mv.requestUpdate();
+
+            const applyGrounded = () => {
+              ${widget.grounded == true ? '''
                 if (!mv.getAttribute('skybox-image')) {
                   var env = mv.getAttribute('environment-image');
                   if (env) mv.setAttribute('skybox-image', env);
@@ -565,48 +560,28 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
                   mv.setAttribute('skybox-projection', 'equirectangular');
                   mv.setAttribute('skybox-height', '$_effectiveSkyboxHeight');
                 }
-              ''');
-            } else if (widget.skyboxHeight != null) {
-              initAttrs.add(
-                  "mv.setAttribute('skybox-height', '${widget.skyboxHeight}');");
-            }
-
-            await webController.runJavaScript('''
-              (function pollForModelViewer() {
-                var mv = document.querySelector('model-viewer');
-                if (!mv) { setTimeout(pollForModelViewer, 100); return; }
-                ${initAttrs.join('\n')}
                 if (mv.requestUpdate) mv.requestUpdate();
+                if (mv.jumpCameraToGoal) mv.jumpCameraToGoal();
+              ''' : ''}
+            };
 
-                const applyGrounded = () => {
-                  ${widget.grounded == true ? '''
-                    if (!mv.getAttribute('skybox-image')) {
-                      var env = mv.getAttribute('environment-image');
-                      if (env) mv.setAttribute('skybox-image', env);
-                    }
-                    if (mv.getAttribute('skybox-image')) {
-                      mv.setAttribute('skybox-projection', 'equirectangular');
-                      mv.setAttribute('skybox-height', '$_effectiveSkyboxHeight');
-                    }
-                    if (mv.requestUpdate) mv.requestUpdate();
-                    if (mv.jumpCameraToGoal) mv.jumpCameraToGoal();
-                  ''' : ''}
-                };
+            mv.addEventListener('load', applyGrounded, { once: true });
+            if (mv.loaded) applyGrounded();
 
-                mv.addEventListener('load', applyGrounded, { once: true });
-                if (mv.loaded) applyGrounded();
+            if (window.modelViewerProInit) window.modelViewerProInit();
+          })();
+        ''');
 
-                if (window.modelViewerProInit) window.modelViewerProInit();
-              })();
-            ''');
-
-            if (widget.onLoad != null) {
+            if (widget.onLoad != null || widget.initialLoadingMeshes != null) {
               unawaited(_checkModelLoadedAndGetMeshes());
             }
           },
         ),
         if (_curtainVisible)
-          Container(color: widget.backgroundColor),
+          Container(
+            key: const ValueKey('mvp-html-curtain'),
+            color: widget.backgroundColor,
+          ),
       ],
     );
   }
@@ -668,6 +643,7 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
                   }
                 }
               }
+              if (!scene && mv.scene) scene = mv.scene;
               if (!scene) return;
 
               // Track which nodes we hid so runtime show works
@@ -679,40 +655,13 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
               scene.traverse(function(child) {
                 if (!child || !child.name) return;
                 var name = child.name.trim();
-                if (!name || name === 'Scene' || name === 'Root' || name === 'root') return;
+                if (!name || name === 'Scene' || name === 'Root' || name === 'root' || name === 'group') return;
                 if (child.isMesh || child.type === 'Mesh' || child.type === 'SkinnedMesh') {
-                  if (child.material) {
-                    if (!child.material._isCloned) {
-                      if (Array.isArray(child.material)) {
-                        child.material = child.material.map(m => { let c = m.clone(); c._isCloned = true; return c; });
-                      } else {
-                        child.material = child.material.clone();
-                        child.material._isCloned = true;
-                      }
+                  if (child.scale) {
+                    if (child._origScale === undefined) {
+                      child._origScale = { x: child.scale.x, y: child.scale.y, z: child.scale.z };
                     }
-                    if (Array.isArray(child.material)) {
-                      child.material.forEach(m => {
-                        if (m._origOpacity === undefined) {
-                          m._origOpacity = m.opacity;
-                          m._origTransparent = m.transparent;
-                          m._origDepthWrite = m.depthWrite;
-                        }
-                        m.opacity = 0;
-                        m.transparent = true;
-                        m.depthWrite = false;
-                        m.needsUpdate = true;
-                      });
-                    } else {
-                      if (child.material._origOpacity === undefined) {
-                        child.material._origOpacity = child.material.opacity;
-                        child.material._origTransparent = child.material.transparent;
-                        child.material._origDepthWrite = child.material.depthWrite;
-                      }
-                      child.material.opacity = 0;
-                      child.material.transparent = true;
-                      child.material.depthWrite = false;
-                      child.material.needsUpdate = true;
-                    }
+                    child.scale.set(0, 0, 0);
                   }
                   window._mvpHiddenNodes.add(name);
                 }
@@ -723,31 +672,17 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
                 if (!child || !child.name) return;
                 var name = child.name.trim();
                 if (whitelist.indexOf(name) !== -1) {
-                  const restoreOpacity = (node) => {
-                    if ((node.isMesh || node.type === 'Mesh' || node.type === 'SkinnedMesh') && node.material) {
-                      if (Array.isArray(node.material)) {
-                        node.material.forEach(m => {
-                          if (m._origOpacity !== undefined) {
-                            m.opacity = m._origOpacity;
-                            m.transparent = m._origTransparent;
-                            m.depthWrite = m._origDepthWrite !== undefined ? m._origDepthWrite : true;
-                            m.needsUpdate = true;
-                          }
-                        });
-                      } else {
-                        if (node.material._origOpacity !== undefined) {
-                          node.material.opacity = node.material._origOpacity;
-                          node.material.transparent = node.material._origTransparent;
-                          node.material.depthWrite = node.material._origDepthWrite !== undefined ? node.material._origDepthWrite : true;
-                          node.material.needsUpdate = true;
-                        }
+                  const restoreScale = (node) => {
+                    if ((node.isMesh || node.type === 'Mesh' || node.type === 'SkinnedMesh') && node.scale) {
+                      if (node._origScale !== undefined) {
+                        node.scale.set(node._origScale.x, node._origScale.y, node._origScale.z);
                       }
                     }
                   };
                   
-                  restoreOpacity(child);
+                  restoreScale(child);
                   if (child.traverse) {
-                    child.traverse(function(c) { restoreOpacity(c); });
+                    child.traverse(function(c) { restoreScale(c); });
                   }
                   
                   window._mvpHiddenNodes.delete(name);

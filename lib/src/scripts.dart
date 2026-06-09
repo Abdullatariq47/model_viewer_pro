@@ -250,10 +250,8 @@ class ModelViewerProManager {
     return JSON.stringify(Array.from(names));
   }
 
-  /// Show or hide a named node (and all its children).
-  /// Show or hide a named node using scale-based hiding.
-  /// scale.set(0,0,0) is the most reliable hide technique: no material
-  /// clone/upload needed — Three.js simply skips scale=0 nodes during draw.
+  /// Show or hide a named node (and all its children) using a scale-based workaround.
+  /// Mutating Three.js .visible directly can crash model-viewer's internal systems.
   setNodeVisibility(nodeName, isVisible) {
     if (!this.mv) { console.warn('modelViewerPro: mv not initialized'); return false; }
     const target = this._findNodeByName(nodeName);
@@ -261,24 +259,26 @@ class ModelViewerProManager {
       console.warn('modelViewerPro: setNodeVisibility — node not found:', nodeName);
       return false;
     }
-
-    const applyScale = (node) => {
-      if (!node || !node.scale) return;
-      // Persist original scale on first hide so we can restore it exactly.
-      if (node._origScale === undefined) {
-        node._origScale = { x: node.scale.x, y: node.scale.y, z: node.scale.z };
-      }
-      if (isVisible) {
-        node.scale.set(node._origScale.x, node._origScale.y, node._origScale.z);
-      } else {
-        node.scale.set(0, 0, 0);
+    
+    const setNodeScale = (node, visible) => {
+      if (!node) return;
+      if (node.scale) {
+        if (node._origScale === undefined) {
+          node._origScale = { x: node.scale.x, y: node.scale.y, z: node.scale.z };
+        }
+        if (visible) {
+          node.scale.set(node._origScale.x, node._origScale.y, node._origScale.z);
+        } else {
+          node.scale.set(0, 0, 0);
+        }
       }
     };
 
-    applyScale(target);
-    target.traverse((child) => applyScale(child));
+    setNodeScale(target, isVisible);
+    target.traverse((child) => {
+      setNodeScale(child, isVisible);
+    });
 
-    // Force model-viewer to render the updated scene.
     if (typeof _modelViewerProForceRender === 'function') {
       _modelViewerProForceRender(this.mv, this.scene);
     }
