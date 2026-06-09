@@ -137,6 +137,9 @@ class ModelViewerProViewer extends StatefulWidget {
   /// CSS `touch-action` attribute, e.g. `"pan-y"`.
   final String? touchAction;
 
+  /// List of mesh names to show initially while hiding the rest.
+  final List<String>? initialLoadingMeshes;
+
   // ── Model loading ─────────────────────────────────────────────────────────
 
   /// Whether to show the AR button. Defaults to `false`.
@@ -214,6 +217,7 @@ class ModelViewerProViewer extends StatefulWidget {
     this.skyboxHeight,
     this.disableZoom,
     this.disableTap,
+    this.initialLoadingMeshes,
   });
 
   @override
@@ -224,6 +228,7 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
   late WebViewController _webViewController;
   bool _modelLoaded = false;
   int _meshLoadAttempts = 0;
+  bool _curtainVisible = true;
 
   // ── Effective values ──────────────────────────────────────────────────────
   // When grounded is true these resolve to a sensible default unless the
@@ -334,6 +339,47 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
           : "mv.setAttribute('min-camera-orbit', '${widget.minCameraOrbit}');");
     }
 
+    if (oldWidget.exposure != widget.exposure) {
+      changes.add(widget.exposure == null
+          ? "mv.removeAttribute('exposure');"
+          : "mv.setAttribute('exposure', '${widget.exposure}');");
+    }
+    if (oldWidget.shadowIntensity != widget.shadowIntensity) {
+      changes.add(_effectiveShadowIntensity == null
+          ? "mv.removeAttribute('shadow-intensity');"
+          : "mv.setAttribute('shadow-intensity', '$_effectiveShadowIntensity');");
+    }
+    if (oldWidget.shadowSoftness != widget.shadowSoftness) {
+      changes.add(widget.shadowSoftness == null
+          ? "mv.removeAttribute('shadow-softness');"
+          : "mv.setAttribute('shadow-softness', '${widget.shadowSoftness}');");
+    }
+    if (oldWidget.autoRotate != widget.autoRotate) {
+      changes.add(widget.autoRotate
+          ? "mv.setAttribute('auto-rotate', '');"
+          : "mv.removeAttribute('auto-rotate');");
+    }
+    if (oldWidget.cameraControls != widget.cameraControls) {
+      changes.add(widget.cameraControls
+          ? "mv.setAttribute('camera-controls', '');"
+          : "mv.removeAttribute('camera-controls');");
+    }
+    if (oldWidget.cameraOrbit != widget.cameraOrbit) {
+      changes.add(widget.cameraOrbit == null
+          ? "mv.removeAttribute('camera-orbit');"
+          : "mv.setAttribute('camera-orbit', '${widget.cameraOrbit}');");
+    }
+    if (oldWidget.cameraTarget != widget.cameraTarget) {
+      changes.add(widget.cameraTarget == null
+          ? "mv.removeAttribute('camera-target');"
+          : "mv.setAttribute('camera-target', '${widget.cameraTarget}');");
+    }
+    if (oldWidget.fieldOfView != widget.fieldOfView) {
+      changes.add(widget.fieldOfView == null
+          ? "mv.removeAttribute('field-of-view');"
+          : "mv.setAttribute('field-of-view', '${widget.fieldOfView}');");
+    }
+
     if (changes.isNotEmpty) {
       unawaited(_webViewController.runJavaScript('''
         (function() {
@@ -406,29 +452,31 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
         !resolvedEnv.startsWith('http') &&
         !resolvedEnv.startsWith('data:');
 
-    return ModelViewer(
-      src: widget.src,
-      backgroundColor: widget.backgroundColor,
-      autoRotate: widget.autoRotate,
-      cameraControls: widget.cameraControls,
-      ar: widget.ar,
-      autoPlay: widget.autoPlay,
-      cameraOrbit: widget.cameraOrbit,
-      cameraTarget: widget.cameraTarget,
-      fieldOfView: widget.fieldOfView,
-      minFieldOfView: widget.minFieldOfView,
-      maxFieldOfView: widget.maxFieldOfView,
-      shadowIntensity: _effectiveShadowIntensity,
-      shadowSoftness: widget.shadowSoftness,
-      exposure: widget.exposure,
-      alt: widget.alt,
-      poster: widget.poster,
-      loading: widget.loading,
-      reveal: widget.reveal,
-      // Pass null for local assets — injected as base64 after init.
-      environmentImage: isEnvAsset ? null : resolvedEnv,
-      skyboxImage: isSkyboxAsset ? null : resolvedSkybox,
-      debugLogging: false,
+    return Stack(
+      children: [
+        ModelViewer(
+          src: widget.src,
+          backgroundColor: widget.backgroundColor,
+          autoRotate: widget.autoRotate,
+          cameraControls: widget.cameraControls,
+          ar: widget.ar,
+          autoPlay: widget.autoPlay,
+          cameraOrbit: widget.cameraOrbit,
+          cameraTarget: widget.cameraTarget,
+          fieldOfView: widget.fieldOfView,
+          minFieldOfView: widget.minFieldOfView,
+          maxFieldOfView: widget.maxFieldOfView,
+          shadowIntensity: _effectiveShadowIntensity,
+          shadowSoftness: widget.shadowSoftness,
+          exposure: widget.exposure,
+          alt: widget.alt,
+          poster: widget.poster,
+          loading: widget.loading,
+          reveal: widget.reveal,
+          // Pass null for local assets — injected as base64 after init.
+          environmentImage: isEnvAsset ? null : resolvedEnv,
+          skyboxImage: isSkyboxAsset ? null : resolvedSkybox,
+          debugLogging: false,
       onWebViewCreated: (webController) async {
         _webViewController = webController;
         widget.controller?.setWebViewController(webController);
@@ -524,12 +572,19 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
           })();
         ''');
 
-        if (widget.onLoad != null) {
+        if (widget.onLoad != null || widget.initialLoadingMeshes != null) {
           unawaited(_checkModelLoadedAndGetMeshes());
         }
       },
-    );
-  }
+    ),
+    if (_curtainVisible)
+      Container(
+        key: const ValueKey('mvp-html-curtain'),
+        color: widget.backgroundColor,
+      ),
+    ],
+  );
+}
 
   // ── Mesh loader ───────────────────────────────────────────────────────────
 
@@ -569,13 +624,102 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
         // Brief buffer so the scene graph fully settles before traversal.
         await Future<void>.delayed(const Duration(milliseconds: 800));
 
+        // Apply initial mesh visibility filter while the CSS curtain hides model-viewer.
+        if (widget.initialLoadingMeshes != null && mounted) {
+          final whitelist = jsonEncode(widget.initialLoadingMeshes);
+          await _webViewController.runJavaScript('''
+            (function() {
+              var mv = document.querySelector('model-viewer');
+              if (!mv || !mv.loaded) return;
+
+              var scene = null;
+              if (mv.model && mv.model.scene) scene = mv.model.scene;
+              if (!scene) {
+                var syms = Object.getOwnPropertySymbols(mv);
+                for (var i = 0; i < syms.length; i++) {
+                  if (syms[i].description && syms[i].description.includes('scene')) {
+                    var obj = mv[syms[i]];
+                    if (obj && obj.traverse) { scene = obj; break; }
+                  }
+                }
+              }
+              if (!scene && mv.scene) scene = mv.scene;
+              if (!scene) return;
+
+              // Track which nodes we hid so runtime show works
+              if (!window._mvpHiddenNodes) window._mvpHiddenNodes = new Set();
+
+              var whitelist = $whitelist;
+
+              // Pass 1: hide ALL Mesh objects
+              scene.traverse(function(child) {
+                if (!child || !child.name) return;
+                var name = child.name.trim();
+                if (!name || name === 'Scene' || name === 'Root' || name === 'root' || name === 'group') return;
+                if (child.isMesh || child.type === 'Mesh' || child.type === 'SkinnedMesh') {
+                  if (child.scale) {
+                    if (child._origScale === undefined) {
+                      child._origScale = { x: child.scale.x, y: child.scale.y, z: child.scale.z };
+                    }
+                    child.scale.set(0, 0, 0);
+                  }
+                  window._mvpHiddenNodes.add(name);
+                }
+              });
+
+              // Pass 2: show ONLY whitelisted nodes
+              scene.traverse(function(child) {
+                if (!child || !child.name) return;
+                var name = child.name.trim();
+                if (whitelist.indexOf(name) !== -1) {
+                  const restoreScale = (node) => {
+                    if ((node.isMesh || node.type === 'Mesh' || node.type === 'SkinnedMesh') && node.scale) {
+                      if (node._origScale !== undefined) {
+                        node.scale.set(node._origScale.x, node._origScale.y, node._origScale.z);
+                      }
+                    }
+                  };
+                  
+                  restoreScale(child);
+                  if (child.traverse) {
+                    child.traverse(function(c) { restoreScale(c); });
+                  }
+                  
+                  window._mvpHiddenNodes.delete(name);
+                }
+              });
+
+              // Force a quick re-render
+              try { if (mv.requestUpdate) mv.requestUpdate(); } catch(e) {}
+              if (typeof window._modelViewerProForceRender === 'function') {
+                window._modelViewerProForceRender(mv, scene);
+              }
+
+              // Wait for the render pump to paint several frames, then remove curtain
+              setTimeout(function() {
+                var curtain = document.getElementById('mvp-html-curtain');
+                if (curtain) {
+                  curtain.style.opacity = '0';
+                  setTimeout(function() { curtain.remove(); }, 350);
+                }
+              }, 600);
+            })();
+          ''');
+
+          // Wait for the render pump + curtain fade
+          await Future<void>.delayed(const Duration(milliseconds: 1000));
+        }
+
+        // Drop the curtain — model is ready and filtered.
+        if (mounted) setState(() => _curtainVisible = false);
+
         if (widget.controller != null && mounted) {
           try {
             final meshes = await widget.controller!.getAvailableMeshes();
-            if (mounted) widget.onLoad!(meshes);
+            if (mounted && widget.onLoad != null) widget.onLoad!(meshes);
           } catch (e) {
             debugPrint('model_viewer_pro: error retrieving meshes — $e');
-            if (mounted) widget.onLoad!(<String>[]);
+            if (mounted && widget.onLoad != null) widget.onLoad!(<String>[]);
           }
         }
       } else if (!isLoaded && !_modelLoaded && mounted) {

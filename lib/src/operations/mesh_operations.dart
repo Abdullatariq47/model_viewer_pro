@@ -73,6 +73,94 @@ mixin MeshOperations {
     }
   }
 
+  /// Returns all named mesh nodes with their current visibility state.
+  ///
+  /// Each entry has `name` (String) and `visible` (bool).
+  /// A mesh is considered hidden if its scale is (0, 0, 0).
+  Future<List<Map<String, dynamic>>> getAvailableMeshesWithState() async {
+    if (webViewController == null) return [];
+
+    try {
+      final result = await webViewController!.runJavaScriptReturningResult('''
+        (function() {
+          try {
+            var mv = document.querySelector('model-viewer');
+            if (!mv || !mv.loaded) return "[]";
+
+            var scene = null;
+            if (mv.model && mv.model.scene) scene = mv.model.scene;
+            if (!scene) {
+              var syms = Object.getOwnPropertySymbols(mv);
+              for (var i = 0; i < syms.length; i++) {
+                if (syms[i].description && syms[i].description.includes('scene')) {
+                  var obj = mv[syms[i]];
+                  if (obj && obj.traverse) { scene = obj; break; }
+                }
+              }
+            }
+            if (!scene && mv.scene) scene = mv.scene;
+            if (!scene) return "[]";
+
+            var meshes = {};
+            scene.traverse(function(node) {
+              if (!node || !node.name) return;
+              if (node.type === 'Camera' || node.type === 'Light' || node.isBone) return;
+              var name = String(node.name).trim();
+              if (!name || name === 'Scene' || name === 'Root' || name === 'root' || name === 'group') return;
+              if (!(node.isMesh || node.type === 'Group' || node.type === 'Object3D' || node.type === 'Mesh')) return;
+              if (meshes[name] !== undefined) return;
+              
+              // Determine visibility: check scale
+              var visible = true;
+              if (node.scale) {
+                if (node.scale.x === 0 && node.scale.y === 0 && node.scale.z === 0) {
+                  visible = false;
+                }
+              }
+              meshes[name] = visible;
+            });
+
+            var result = [];
+            var keys = Object.keys(meshes);
+            for (var i = 0; i < keys.length; i++) {
+              result.push({ name: keys[i], visible: meshes[keys[i]] });
+            }
+            return JSON.stringify(result);
+          } catch (e) {
+            return "[]";
+          }
+        })();
+      ''');
+
+      final raw = result.toString();
+      if (raw.isEmpty || raw == 'null') return [];
+
+      try {
+        dynamic decoded = jsonDecode(raw);
+        if (decoded is String) decoded = jsonDecode(decoded);
+        if (decoded is List) {
+          final List<Map<String, dynamic>> meshStates = [];
+          for (final item in decoded) {
+            if (item is Map<String, dynamic>) {
+              meshStates.add({
+                'name': item['name']?.toString() ?? '',
+                'visible': item['visible'] == true,
+              });
+            }
+          }
+          return meshStates;
+        }
+        return [];
+      } catch (e) {
+        debugPrint('model_viewer_pro: getAvailableMeshesWithState decode error — \$e');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('model_viewer_pro: getAvailableMeshesWithState error — \$e');
+      return [];
+    }
+  }
+
   // ── Visibility ────────────────────────────────────────────────────────────
 
   /// Shows or hides the node named [meshName] and all its children.

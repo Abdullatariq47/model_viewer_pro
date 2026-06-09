@@ -10,30 +10,74 @@
 const String jsMeshManager = """
 (function() {
 
-// ── Shared render trigger ─────────────────────────────────────────────────────
+// ── Persistent RAF render watcher ──────────────────────────────────────────
+// Runs every animation frame but only does work for 800 ms after a
+// visibility change.  Each iteration nudges exposure ± 0.001 (imperceptible),
+// which fires attributeChangedCallback → scheduleRenderFrame() → model-viewer
+// renders that exact frame with the updated scale=0 nodes already applied.
+window._mvpRenderDeadline = 0;
+window._mvpRenderMV = null;
+window._mvpRenderOrigExp = null;
+(function _mvpRenderWatcher() {
+  requestAnimationFrame(_mvpRenderWatcher);
+  const now = Date.now();
+  if (now > window._mvpRenderDeadline || !window._mvpRenderMV) return;
+  const mv = window._mvpRenderMV;
+  try {
+    if (window._mvpRenderOrigExp === null)
+      window._mvpRenderOrigExp = parseFloat(mv.getAttribute('exposure') || '1') || 1;
+    const delta = (Math.floor(now / 100) % 2 === 0) ? 0 : 0.001;
+    mv.setAttribute('exposure', String(window._mvpRenderOrigExp + delta));
+    if (mv.requestUpdate) mv.requestUpdate();
+  } catch(e) {}
+})();
 
 /**
- * Forces model-viewer to redraw after programmatic scene changes.
- * Uses three independent approaches for maximum compatibility.
+ * Forces model-viewer to redraw after a programmatic scene change.
+ *
+ * Three layered strategies — the watcher above is the primary backstop:
+ *   1. window resize event — model-viewer ALWAYS calls scheduleRenderFrame()
+ *      on resize regardless of idle state, no isTrusted requirement.
+ *   2. cameraOrbit property nudge (0.0001 rad, sub-pixel, invisible) — direct
+ *      JS property setter triggers model-viewer's reactive update cycle.
+ *   3. autoRotate = true toggle — Lit reactive path → scheduleRenderFrame().
  */
 function _modelViewerProForceRender(mv, scene) {
-  // 1. Dispatch synthetic pointer events to simulate a screen touch.
-  // This is the most reliable way to wake up the model-viewer render loop.
-  try {
-    if (mv) {
-      mv.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 0, clientY: 0 }));
-      mv.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: 0, clientY: 0 }));
-      if (typeof mv.requestUpdate === 'function') mv.requestUpdate();
-    }
-  } catch(e) {
-    console.warn('modelViewerPro: pointer event force render failed', e);
-  }
+  // Arm the persistent RAF watcher for 800 ms.
+  window._mvpRenderDeadline = Date.now() + 800;
+  window._mvpRenderMV = mv;
+  window._mvpRenderOrigExp = null;  // reset so watcher re-captures fresh value
 
-  // 2. Fallback: autoRotate toggle
+  // Strategy 1: window resize — unconditionally triggers scheduleRenderFrame().
+  try { window.dispatchEvent(new Event('resize')); } catch(e) {}
+
+  // Strategy 2: camera orbit nudge (property setter, not setAttribute).
   try {
-    const wasAutoRotate = mv.autoRotate;
+    const orbit = mv.getCameraOrbit();
+    if (orbit) {
+      const tiny = 0.0001;
+      mv.cameraOrbit = `\${orbit.theta + tiny}rad \${orbit.phi}rad \${orbit.radius}m`;
+      requestAnimationFrame(() => {
+        try {
+          mv.cameraOrbit = `\${orbit.theta}rad \${orbit.phi}rad \${orbit.radius}m`;
+          if (mv.jumpCameraToGoal) mv.jumpCameraToGoal();
+        } catch(e) {}
+      });
+    }
+  } catch(e) {}
+
+  // Strategy 3: autoRotate property toggle.
+  try {
+    const was = mv.autoRotate;
     mv.autoRotate = true;
-    setTimeout(() => { mv.autoRotate = wasAutoRotate; }, 100);
+    setTimeout(() => { try { mv.autoRotate = was; } catch(e) {} }, 100);
+  } catch(e) {}
+
+  // Pointer events + requestUpdate as final backstop.
+  try {
+    mv.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 0, clientY: 0 }));
+    mv.dispatchEvent(new PointerEvent('pointerup',   { bubbles: true, clientX: 0, clientY: 0 }));
+    if (mv.requestUpdate) mv.requestUpdate();
   } catch(e) {}
 }
 
@@ -206,14 +250,6 @@ class ModelViewerProManager {
     return JSON.stringify(Array.from(names));
   }
 
-  /// Show or hide a named node (and all its children).
-  setNodeVisibility(nodeName, isVisible) {
-    if (!this.mv) { console.warn('modelViewerPro: mv not initialized'); return false; }
-    const target = this._findNodeByName(nodeName);
-    if (!target) {
-      console.warn('modelViewerPro: setNodeVisibility — node not found:', nodeName);
-      return false;
-    }
   /// Show or hide a named node (and all its children) using a scale-based workaround.
   /// Mutating Three.js .visible directly can crash model-viewer's internal systems.
   setNodeVisibility(nodeName, isVisible) {
