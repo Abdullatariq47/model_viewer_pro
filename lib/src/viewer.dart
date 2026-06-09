@@ -60,6 +60,9 @@ class ModelViewerProViewer extends StatefulWidget {
   /// Called once the model has loaded with a list of available mesh names.
   final void Function(List<String> availableMeshes)? onLoad;
 
+  /// Optional list of mesh names to show initially. All others will be hidden.
+  final List<String>? initialLoadingMeshes;
+
   // ── Appearance ────────────────────────────────────────────────────────────
 
   /// Background color of the viewer. Defaults to [Colors.transparent].
@@ -181,6 +184,7 @@ class ModelViewerProViewer extends StatefulWidget {
     required this.src,
     this.controller,
     this.onLoad,
+    this.initialLoadingMeshes,
     this.backgroundColor = Colors.transparent,
     this.autoRotate = false,
     this.cameraControls = true,
@@ -224,6 +228,12 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
   late WebViewController _webViewController;
   bool _modelLoaded = false;
   int _meshLoadAttempts = 0;
+  bool _curtainVisible = true;
+
+  @override
+  void initState() {
+    super.initState();
+  }
 
   // ── Effective values ──────────────────────────────────────────────────────
   // When grounded is true these resolve to a sensible default unless the
@@ -447,104 +457,106 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
         !resolvedEnv.startsWith('http') &&
         !resolvedEnv.startsWith('data:');
 
-    return ModelViewer(
-      src: widget.src,
-      backgroundColor: widget.backgroundColor,
-      autoRotate: widget.autoRotate,
-      cameraControls: widget.cameraControls,
-      ar: widget.ar,
-      autoPlay: widget.autoPlay,
-      cameraOrbit: widget.cameraOrbit,
-      cameraTarget: widget.cameraTarget,
-      fieldOfView: widget.fieldOfView,
-      minFieldOfView: widget.minFieldOfView,
-      maxFieldOfView: widget.maxFieldOfView,
-      shadowIntensity: _effectiveShadowIntensity,
-      shadowSoftness: widget.shadowSoftness,
-      exposure: widget.exposure,
-      alt: widget.alt,
-      poster: widget.poster,
-      loading: widget.loading,
-      reveal: widget.reveal,
-      // Pass null for local assets — injected as base64 after init.
-      environmentImage: isEnvAsset ? null : resolvedEnv,
-      skyboxImage: isSkyboxAsset ? null : resolvedSkybox,
-      debugLogging: false,
-      onWebViewCreated: (webController) async {
-        _webViewController = webController;
-        widget.controller?.setWebViewController(webController);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ModelViewer(
+          src: widget.src,
+          backgroundColor: widget.backgroundColor,
+          autoRotate: widget.autoRotate,
+          cameraControls: widget.cameraControls,
+          ar: widget.ar,
+          autoPlay: widget.autoPlay,
+          cameraOrbit: widget.cameraOrbit,
+          cameraTarget: widget.cameraTarget,
+          fieldOfView: widget.fieldOfView,
+          minFieldOfView: widget.minFieldOfView,
+          maxFieldOfView: widget.maxFieldOfView,
+          shadowIntensity: _effectiveShadowIntensity,
+          shadowSoftness: widget.shadowSoftness,
+          exposure: widget.exposure,
+          alt: widget.alt,
+          poster: widget.poster,
+          loading: widget.loading,
+          reveal: widget.reveal,
+          // Pass null for local assets — injected as base64 after init.
+          environmentImage: isEnvAsset ? null : resolvedEnv,
+          skyboxImage: isSkyboxAsset ? null : resolvedSkybox,
+          debugLogging: false,
+          onWebViewCreated: (webController) async {
+            _webViewController = webController;
+            widget.controller?.setWebViewController(webController);
 
-        // Inject the JS manager (defines ModelViewerProManager + force-render helper).
-        await webController.runJavaScript(jsMeshManager);
-        await Future<void>.delayed(const Duration(milliseconds: 150));
+            // Inject the JS manager (defines ModelViewerProManager + force-render helper).
+            await webController.runJavaScript(jsMeshManager);
+            await Future<void>.delayed(const Duration(milliseconds: 150));
 
-        final initAttrs = <String>[];
-
-        // Encode local assets as base-64 data URIs.
-        if (isEnvAsset) {
-          final uri = await _loadAssetToBase64(resolvedEnv);
-          if (uri != null) {
-            initAttrs.add("mv.setAttribute('environment-image', '$uri');");
-          }
-        }
-        if (isSkyboxAsset) {
-          final uri = await _loadAssetToBase64(resolvedSkybox);
-          if (uri != null) {
-            initAttrs.add("mv.setAttribute('skybox-image', '$uri');");
-          }
-        }
-
-        // Interaction attributes.
-        if (_effectiveDisablePan) {
-          initAttrs.add("mv.setAttribute('disable-pan', '');");
-        }
-        if (widget.disableZoom == true) {
-          initAttrs.add("mv.setAttribute('disable-zoom', '');");
-        }
-        if (widget.disableTap == true) {
-          initAttrs.add("mv.setAttribute('disable-tap', '');");
-        }
-        if (widget.touchAction != null) {
-          initAttrs
-              .add("mv.setAttribute('touch-action', '${widget.touchAction}');");
-        }
-
-        // Camera constraints.
-        if (_effectiveMaxCameraOrbit != null) {
-          initAttrs.add(
-              "mv.setAttribute('max-camera-orbit', '$_effectiveMaxCameraOrbit');");
-        }
-        if (widget.minCameraOrbit != null) {
-          initAttrs.add(
-              "mv.setAttribute('min-camera-orbit', '${widget.minCameraOrbit}');");
-        }
-
-        // Grounded floor projection.
-        if (widget.grounded == true) {
-          initAttrs.add('''
-            if (!mv.getAttribute('skybox-image')) {
-              var env = mv.getAttribute('environment-image');
-              if (env) mv.setAttribute('skybox-image', env);
+            // Inject HTML div overlay inside the WebView — covers model-viewer
+            // completely so we don't need to mess with its CSS or opacity,
+            // avoiding GL_INVALID_FRAMEBUFFER_OPERATION errors.
+            if (widget.initialLoadingMeshes != null) {
+              final bgHex = '#${widget.backgroundColor.toARGB32().toRadixString(16).substring(2, 8)}';
+              await webController.runJavaScript('''
+                (function() {
+                  var div = document.createElement('div');
+                  div.id = 'mvp-html-curtain';
+                  div.style.position = 'fixed';
+                  div.style.top = '0';
+                  div.style.left = '0';
+                  div.style.width = '100vw';
+                  div.style.height = '100vh';
+                  div.style.backgroundColor = '$bgHex';
+                  div.style.zIndex = '999999';
+                  div.style.transition = 'opacity 0.3s ease';
+                  document.body.appendChild(div);
+                })();
+              ''');
             }
-            if (mv.getAttribute('skybox-image')) {
-              mv.setAttribute('skybox-projection', 'equirectangular');
-              mv.setAttribute('skybox-height', '$_effectiveSkyboxHeight');
+
+            final initAttrs = <String>[];
+
+            // Encode local assets as base-64 data URIs.
+            if (isEnvAsset) {
+              final uri = await _loadAssetToBase64(resolvedEnv);
+              if (uri != null) {
+                initAttrs.add("mv.setAttribute('environment-image', '$uri');");
+              }
             }
-          ''');
-        } else if (widget.skyboxHeight != null) {
-          initAttrs.add(
-              "mv.setAttribute('skybox-height', '${widget.skyboxHeight}');");
-        }
+            if (isSkyboxAsset) {
+              final uri = await _loadAssetToBase64(resolvedSkybox);
+              if (uri != null) {
+                initAttrs.add("mv.setAttribute('skybox-image', '$uri');");
+              }
+            }
 
-        await webController.runJavaScript('''
-          (function pollForModelViewer() {
-            var mv = document.querySelector('model-viewer');
-            if (!mv) { setTimeout(pollForModelViewer, 100); return; }
-            ${initAttrs.join('\n')}
-            if (mv.requestUpdate) mv.requestUpdate();
+            // Interaction attributes.
+            if (_effectiveDisablePan) {
+              initAttrs.add("mv.setAttribute('disable-pan', '');");
+            }
+            if (widget.disableZoom == true) {
+              initAttrs.add("mv.setAttribute('disable-zoom', '');");
+            }
+            if (widget.disableTap == true) {
+              initAttrs.add("mv.setAttribute('disable-tap', '');");
+            }
+            if (widget.touchAction != null) {
+              initAttrs
+                  .add("mv.setAttribute('touch-action', '${widget.touchAction}');");
+            }
 
-            const applyGrounded = () => {
-              ${widget.grounded == true ? '''
+            // Camera constraints.
+            if (_effectiveMaxCameraOrbit != null) {
+              initAttrs.add(
+                  "mv.setAttribute('max-camera-orbit', '$_effectiveMaxCameraOrbit');");
+            }
+            if (widget.minCameraOrbit != null) {
+              initAttrs.add(
+                  "mv.setAttribute('min-camera-orbit', '${widget.minCameraOrbit}');");
+            }
+
+            // Grounded floor projection.
+            if (widget.grounded == true) {
+              initAttrs.add('''
                 if (!mv.getAttribute('skybox-image')) {
                   var env = mv.getAttribute('environment-image');
                   if (env) mv.setAttribute('skybox-image', env);
@@ -553,22 +565,49 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
                   mv.setAttribute('skybox-projection', 'equirectangular');
                   mv.setAttribute('skybox-height', '$_effectiveSkyboxHeight');
                 }
+              ''');
+            } else if (widget.skyboxHeight != null) {
+              initAttrs.add(
+                  "mv.setAttribute('skybox-height', '${widget.skyboxHeight}');");
+            }
+
+            await webController.runJavaScript('''
+              (function pollForModelViewer() {
+                var mv = document.querySelector('model-viewer');
+                if (!mv) { setTimeout(pollForModelViewer, 100); return; }
+                ${initAttrs.join('\n')}
                 if (mv.requestUpdate) mv.requestUpdate();
-                if (mv.jumpCameraToGoal) mv.jumpCameraToGoal();
-              ''' : ''}
-            };
 
-            mv.addEventListener('load', applyGrounded, { once: true });
-            if (mv.loaded) applyGrounded();
+                const applyGrounded = () => {
+                  ${widget.grounded == true ? '''
+                    if (!mv.getAttribute('skybox-image')) {
+                      var env = mv.getAttribute('environment-image');
+                      if (env) mv.setAttribute('skybox-image', env);
+                    }
+                    if (mv.getAttribute('skybox-image')) {
+                      mv.setAttribute('skybox-projection', 'equirectangular');
+                      mv.setAttribute('skybox-height', '$_effectiveSkyboxHeight');
+                    }
+                    if (mv.requestUpdate) mv.requestUpdate();
+                    if (mv.jumpCameraToGoal) mv.jumpCameraToGoal();
+                  ''' : ''}
+                };
 
-            if (window.modelViewerProInit) window.modelViewerProInit();
-          })();
-        ''');
+                mv.addEventListener('load', applyGrounded, { once: true });
+                if (mv.loaded) applyGrounded();
 
-        if (widget.onLoad != null) {
-          unawaited(_checkModelLoadedAndGetMeshes());
-        }
-      },
+                if (window.modelViewerProInit) window.modelViewerProInit();
+              })();
+            ''');
+
+            if (widget.onLoad != null) {
+              unawaited(_checkModelLoadedAndGetMeshes());
+            }
+          },
+        ),
+        if (_curtainVisible)
+          Container(color: widget.backgroundColor),
+      ],
     );
   }
 
@@ -610,13 +649,142 @@ class _ModelViewerProViewerState extends State<ModelViewerProViewer> {
         // Brief buffer so the scene graph fully settles before traversal.
         await Future<void>.delayed(const Duration(milliseconds: 800));
 
+        // Apply initial mesh visibility filter while the CSS curtain hides model-viewer.
+        if (widget.initialLoadingMeshes != null && mounted) {
+          final whitelist = jsonEncode(widget.initialLoadingMeshes);
+          await _webViewController.runJavaScript('''
+            (function() {
+              var mv = document.querySelector('model-viewer');
+              if (!mv || !mv.loaded) return;
+
+              var scene = null;
+              if (mv.model && mv.model.scene) scene = mv.model.scene;
+              if (!scene) {
+                var syms = Object.getOwnPropertySymbols(mv);
+                for (var i = 0; i < syms.length; i++) {
+                  if (syms[i].description && syms[i].description.includes('scene')) {
+                    var obj = mv[syms[i]];
+                    if (obj && obj.traverse) { scene = obj; break; }
+                  }
+                }
+              }
+              if (!scene) return;
+
+              // Track which nodes we hid so runtime show works
+              if (!window._mvpHiddenNodes) window._mvpHiddenNodes = new Set();
+
+              var whitelist = $whitelist;
+
+              // Pass 1: hide ALL Mesh objects
+              scene.traverse(function(child) {
+                if (!child || !child.name) return;
+                var name = child.name.trim();
+                if (!name || name === 'Scene' || name === 'Root' || name === 'root') return;
+                if (child.isMesh || child.type === 'Mesh' || child.type === 'SkinnedMesh') {
+                  if (child.material) {
+                    if (!child.material._isCloned) {
+                      if (Array.isArray(child.material)) {
+                        child.material = child.material.map(m => { let c = m.clone(); c._isCloned = true; return c; });
+                      } else {
+                        child.material = child.material.clone();
+                        child.material._isCloned = true;
+                      }
+                    }
+                    if (Array.isArray(child.material)) {
+                      child.material.forEach(m => {
+                        if (m._origOpacity === undefined) {
+                          m._origOpacity = m.opacity;
+                          m._origTransparent = m.transparent;
+                          m._origDepthWrite = m.depthWrite;
+                        }
+                        m.opacity = 0;
+                        m.transparent = true;
+                        m.depthWrite = false;
+                        m.needsUpdate = true;
+                      });
+                    } else {
+                      if (child.material._origOpacity === undefined) {
+                        child.material._origOpacity = child.material.opacity;
+                        child.material._origTransparent = child.material.transparent;
+                        child.material._origDepthWrite = child.material.depthWrite;
+                      }
+                      child.material.opacity = 0;
+                      child.material.transparent = true;
+                      child.material.depthWrite = false;
+                      child.material.needsUpdate = true;
+                    }
+                  }
+                  window._mvpHiddenNodes.add(name);
+                }
+              });
+
+              // Pass 2: show ONLY whitelisted nodes
+              scene.traverse(function(child) {
+                if (!child || !child.name) return;
+                var name = child.name.trim();
+                if (whitelist.indexOf(name) !== -1) {
+                  const restoreOpacity = (node) => {
+                    if ((node.isMesh || node.type === 'Mesh' || node.type === 'SkinnedMesh') && node.material) {
+                      if (Array.isArray(node.material)) {
+                        node.material.forEach(m => {
+                          if (m._origOpacity !== undefined) {
+                            m.opacity = m._origOpacity;
+                            m.transparent = m._origTransparent;
+                            m.depthWrite = m._origDepthWrite !== undefined ? m._origDepthWrite : true;
+                            m.needsUpdate = true;
+                          }
+                        });
+                      } else {
+                        if (node.material._origOpacity !== undefined) {
+                          node.material.opacity = node.material._origOpacity;
+                          node.material.transparent = node.material._origTransparent;
+                          node.material.depthWrite = node.material._origDepthWrite !== undefined ? node.material._origDepthWrite : true;
+                          node.material.needsUpdate = true;
+                        }
+                      }
+                    }
+                  };
+                  
+                  restoreOpacity(child);
+                  if (child.traverse) {
+                    child.traverse(function(c) { restoreOpacity(c); });
+                  }
+                  
+                  window._mvpHiddenNodes.delete(name);
+                }
+              });
+
+              // Force a quick re-render
+              try { if (mv.requestUpdate) mv.requestUpdate(); } catch(e) {}
+              if (typeof window._modelViewerProForceRender === 'function') {
+                window._modelViewerProForceRender(mv, scene);
+              }
+
+              // Wait for the render pump to paint several frames, then remove curtain
+              setTimeout(function() {
+                var curtain = document.getElementById('mvp-html-curtain');
+                if (curtain) {
+                  curtain.style.opacity = '0';
+                  setTimeout(function() { curtain.remove(); }, 350);
+                }
+              }, 600);
+            })();
+          ''');
+
+          // Wait for the render pump + curtain fade
+          await Future<void>.delayed(const Duration(milliseconds: 1000));
+        }
+
+        // Drop the curtain — model is ready and filtered.
+        if (mounted) setState(() => _curtainVisible = false);
+
         if (widget.controller != null && mounted) {
           try {
             final meshes = await widget.controller!.getAvailableMeshes();
-            if (mounted) widget.onLoad!(meshes);
+            if (mounted && widget.onLoad != null) widget.onLoad!(meshes);
           } catch (e) {
             debugPrint('model_viewer_pro: error retrieving meshes — $e');
-            if (mounted) widget.onLoad!(<String>[]);
+            if (mounted && widget.onLoad != null) widget.onLoad!(<String>[]);
           }
         }
       } else if (!isLoaded && !_modelLoaded && mounted) {
