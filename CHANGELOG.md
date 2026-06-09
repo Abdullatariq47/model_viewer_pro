@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.1] — 2026-06-09
+
+### 🛠 Fixes
+- Added `screenshots` field to `pubspec.yaml` to display images on pub.dev.
+- Linked video demo in README.
+
+---
+
 ## [2.0.0] — 2026-06-09
 
 ### 🚀 Breaking Changes / Major Updates

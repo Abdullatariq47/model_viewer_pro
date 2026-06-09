@@ -7,6 +7,8 @@ Display and control interactive **3D models (GLB / GLTF)** in Flutter with
 fine-grained mesh manipulation, camera control, animations, grounded
 environments, and custom lighting.
 
+[🎥 Watch the Video Demo](https://github.com/Abdullatariq47/model_viewer_pro/raw/main/ss/demo.mp4)
+
 Built on top of [`model_viewer_plus`](https://pub.dev/packages/model_viewer_plus),
 this package adds a full Dart API for **runtime scene control** that the base
 package does not provide.
